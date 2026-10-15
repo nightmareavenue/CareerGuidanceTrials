@@ -32,8 +32,15 @@ public static class BuildCarDemoScene
             return;
         }
 
-        // Машинка в начале арены, смотрит вдоль +Z
-        car.transform.position = new Vector3(0, 0.3f, 0);
+        if (car.GetComponent<AirRingScore>() == null)
+            car.AddComponent<AirRingScore>();
+
+        var jetpack = car.GetComponent<JetpackController>();
+        if (jetpack != null) Object.DestroyImmediate(jetpack);
+        var nitro = car.GetComponent<NitroBoost>();
+        if (nitro != null) Object.DestroyImmediate(nitro);
+
+        // Машинку ставим в начало комнаты (позиция задаётся в BuildArena), смотрит вдоль +Z
         car.transform.rotation = Quaternion.identity;
 
         float track = BuildBody(car);
@@ -157,7 +164,17 @@ public static class BuildCarDemoScene
         }
     }
 
-    // ---------- Арена ----------
+    // ---------- Комната ----------
+
+    // Размеры комнаты в метрах (машинка 4 м: это «уменьшенная» комната, всё вокруг огромное)
+    const float RoomW = 160f;   // по X
+    const float RoomL = 200f;   // по Z
+    const float RoomH = 50f;    // высота
+    const float WallT = 2f;     // толщина стен
+    const float StartZ = -85f;  // старт машинки
+
+    // Если окна, двери и картины на стенах не видны (повёрнуты спиной), поставьте true
+    const bool FlipWallDecor = false;
 
     static void BuildArena(GameObject car)
     {
@@ -165,56 +182,53 @@ public static class BuildCarDemoScene
         if (oldArena != null) Object.DestroyImmediate(oldArena);
         var arena = new GameObject("Arena").transform;
 
-        // Земля 100 x 100 м
-        var plane = GameObject.Find("Plane");
-        if (plane != null)
-        {
-            plane.transform.position = Vector3.zero;
-            plane.transform.rotation = Quaternion.identity;
-            plane.transform.localScale = new Vector3(10, 1, 10);
-            var r = plane.GetComponent<Renderer>();
-            if (r != null) r.sharedMaterial = ColorMat("DemoGround", new Color(0.62f, 0.68f, 0.55f));
-        }
+        BuildRoom(arena);
+        BuildAirRings(arena);
 
-        // Невидимые борта, чтобы машинка не уехала за край
-        Border(arena, "Border_N", new Vector3(0, 2, 50), new Vector3(100, 4, 1));
-        Border(arena, "Border_S", new Vector3(0, 2, -50), new Vector3(100, 4, 1));
-        Border(arena, "Border_E", new Vector3(50, 2, 0), new Vector3(1, 4, 100));
-        Border(arena, "Border_W", new Vector3(-50, 2, 0), new Vector3(1, 4, 100));
-
-        // Трамплин
+        // Трамплины
         var ramp = GameObject.CreatePrimitive(PrimitiveType.Cube);
         ramp.name = "Ramp";
         ramp.transform.SetParent(arena, false);
-        ramp.transform.localScale = new Vector3(6, 0.6f, 10);
-        ramp.transform.localPosition = new Vector3(0, 0.9f, 14);
+        ramp.transform.localScale = new Vector3(8, 0.6f, 12);
+        ramp.transform.localPosition = new Vector3(0, 1.1f, -45);
         ramp.transform.localRotation = Quaternion.Euler(-15, 0, 0);
         ramp.GetComponent<Renderer>().sharedMaterial = ColorMat("DemoRamp", new Color(0.95f, 0.55f, 0.15f));
 
-        // Большие предметы по краям арены
-        Place(MakeProp("worktable", "worktable", 16, false, null, true), arena, -36, 10, 90);
-        Place(MakeProp("stack_shelf", "stack_shelf", 10, false, null, true), arena, 38, 8, -90);
-        Place(MakeProp("shelf_wide", "stack_shelf", 14, false, null, true), arena, 38, 34, -90);
-        Place(MakeProp("bedside_drawer", "bedside_drawer", 8, false, null, true), arena, -36, 36, 90);
-        Place(MakeProp("low_shelf", "bedside_drawer", 6, false, "/Prop/", true), arena, -38, -20, 90);
-        Place(MakeProp("tv set", "prop_1", 6, false, "/Prop/", true), arena, -22, 46, 180);
+        var ramp2 = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        ramp2.name = "Ramp_small";
+        ramp2.transform.SetParent(arena, false);
+        ramp2.transform.localScale = new Vector3(6, 0.5f, 9);
+        ramp2.transform.localPosition = new Vector3(32, 0.8f, 15);
+        ramp2.transform.localRotation = Quaternion.Euler(-12, 20, 0);
+        ramp2.GetComponent<Renderer>().sharedMaterial = ColorMat("DemoRamp", new Color(0.95f, 0.55f, 0.15f));
+
+        // Большие предметы вдоль стен (все физические)
+        Place(MakeProp("worktable", "worktable", 20, false, null, true), arena, -62, -20, 90);
+        Place(MakeProp("stack_shelf", "stack_shelf", 12, false, null, true), arena, 66, -30, -90);
+        Place(MakeProp("shelf_wide", "stack_shelf", 16, false, null, true), arena, 66, 28, -90);
+        Place(MakeProp("bedside_drawer", "bedside_drawer", 9, false, null, true), arena, -68, 40, 90);
+        Place(MakeProp("low_shelf", "bedside_drawer", 7, false, "/Prop/", true), arena, -68, 80, 90);
+        Place(MakeProp("tv set", "prop_1", 7, false, "/Prop/", true), arena, -45, 92, 180);
 
         // Мелкие предметы возле старта
-        Place(MakeProp("glue", "prop_1", 3, false, "/Prop/", true), arena, -8, -6, 20);
-        Place(MakeProp("tape", "prop_1", 2.5f, false, "/Prop/", true), arena, 8, -8, -15);
-        Place(MakeProp("scissors", "prop_1", 4, false, "/Prop/", true), arena, -14, -14, 40);
-        Place(MakeProp("spray", "prop_1", 4, false, "/Prop/", true), arena, 14, -12, 0);
-        Place(MakeProp("lamp", "prop_1", 7, true, "/Prop/", true), arena, -24, -4, 0);
+        Place(MakeProp("glue", "prop_1", 3, false, "/Prop/", true), arena, -12, -78, 20);
+        Place(MakeProp("tape", "prop_1", 2.5f, false, "/Prop/", true), arena, 12, -80, -15);
+        Place(MakeProp("scissors", "prop_1", 4, false, "/Prop/", true), arena, -22, -68, 40);
+        Place(MakeProp("spray", "prop_1", 4, false, "/Prop/", true), arena, 22, -70, 0);
+        Place(MakeProp("lamp", "prop_1", 7, true, "/Prop/", true), arena, -34, -76, 0);
 
         // Препятствия на трассе
-        Place(MakeProp("crossing_sticks", "wings", 6, false, null, true), arena, -7, 22, 20);
-        Place(MakeProp("crossing_sticks", "wings", 6, false, null, true), arena, 7, 27, -20);
-        Place(MakeProp("book_1", "prop_2", 3.5f, false, "/Prop/", true), arena, -12, 12, 15);
-        Place(MakeProp("book_2", "prop_2", 3.5f, false, "/Prop/", true), arena, 12, 20, -30);
-        Place(MakeProp("book_3", "prop_3", 3.5f, false, "/Prop/", true), arena, -14, 30, 10);
-        Place(MakeProp("book_4", "prop_3", 3.5f, false, "/Prop/", true), arena, 13, 32, -10);
-        Place(MakeProp("cactus", "prop_3", 4.5f, true, "/Prop/", true), arena, -20, 42, 0);
-        Place(MakeProp("cactus", "prop_3", 4.5f, true, "/Prop/", true), arena, 20, 40, 0);
+        Place(MakeProp("crossing_sticks", "wings", 6, false, null, true), arena, -12, -25, 20);
+        Place(MakeProp("crossing_sticks", "wings", 6, false, null, true), arena, 12, -12, -20);
+        Place(MakeProp("crossing_sticks", "wings", 6, false, null, true), arena, -12, 5, 10);
+        Place(MakeProp("book_1", "prop_2", 3.5f, false, "/Prop/", true), arena, -30, -35, 15);
+        Place(MakeProp("book_2", "prop_2", 3.5f, false, "/Prop/", true), arena, 30, -25, -30);
+        Place(MakeProp("book_3", "prop_3", 3.5f, false, "/Prop/", true), arena, -30, 25, 10);
+        Place(MakeProp("book_4", "prop_3", 3.5f, false, "/Prop/", true), arena, 32, 40, -10);
+        Place(MakeProp("cactus", "prop_3", 5f, true, "/Prop/", true), arena, -55, -55, 0);
+        Place(MakeProp("cactus", "prop_3", 5f, true, "/Prop/", true), arena, 55, -50, 0);
+        Place(MakeProp("cactus", "prop_3", 5f, true, "/Prop/", true), arena, -55, 62, 0);
+        Place(MakeProp("cactus", "prop_3", 5f, true, "/Prop/", true), arena, 55, 70, 0);
 
         // Пирамида из стаканчиков, которую можно сбить
         float h = 1.8f;
@@ -228,30 +242,143 @@ public static class BuildCarDemoScene
         {
             var cup = MakeProp("plastic_cup", "prop_1", h, true, null, true);
             if (cup == null) break;
-            Place(cup, arena, cupPos[i, 0], 36, 0, cupPos[i, 1]);
+            Place(cup, arena, cupPos[i, 0], 60, 0, cupPos[i, 1]);
             var rb = cup.GetComponent<Rigidbody>();
             if (rb != null) rb.mass = 3f;
         }
 
         // Финишная лента (без коллайдера и без физики: просто декорация, через неё можно проехать)
-        Place(MakeProp("finish_tape", "prop_1", 18, false, null, false), arena, 0, 44, 0, 0.5f);
+        Place(MakeProp("finish_tape", "prop_1", 24, false, null, false), arena, 0, 85, 0, 0.5f);
 
-        // Камера
+        // Украшения на стенах: окна, дверь, картины, часы (без физики)
+        // wall: 0 = северная (z+), 1 = южная (z-), 2 = восточная (x+), 3 = западная (x-)
+        PlaceOnWall(MakeProp("window", "prop_3", 16, true, "/Prop/", false), arena, 2, 0, 15);
+        PlaceOnWall(MakeProp("window", "prop_3", 16, true, "/Prop/", false), arena, 0, -30, 15);
+        PlaceOnWall(MakeProp("door", "bedside_drawer", 26, true, "/Prop/", false), arena, 3, -60, 0);
+        PlaceOnWall(MakeProp("picture", "prop_2", 12, false, "/Prop/", false), arena, 1, -25, 22);
+        PlaceOnWall(MakeProp("pano_1", "prop_3", 14, true, "/Prop/", false), arena, 0, 30, 18);
+        PlaceOnWall(MakeProp("wall_clock", "prop_2", 10, false, "/Prop/", false), arena, 0, 0, 36);
+
+        // Машинка и камера
+        car.transform.position = new Vector3(0, 0.3f, StartZ);
+        car.transform.rotation = Quaternion.identity;
+
         var cam = Camera.main;
         if (cam != null)
         {
             cam.transform.localScale = Vector3.one;
-            cam.transform.position = new Vector3(0, 4, -9);
+            cam.transform.position = new Vector3(0, 4, StartZ - 9);
             cam.transform.rotation = Quaternion.Euler(15, 0, 0);
-            var t = Type.GetType("FollowCamera, Assembly-CSharp");
-            if (t != null)
+            var followCamera = cam.GetComponent<FollowCamera>();
+            if (followCamera != null) Object.DestroyImmediate(followCamera);
+        }
+    }
+
+    static void BuildAirRings(Transform arena)
+    {
+        Vector3[] positions =
+        {
+            new Vector3(0, 5, -60),
+            new Vector3(0, 8, -38),
+            new Vector3(12, 10, -12),
+            new Vector3(-12, 10, 18),
+            new Vector3(0, 7, 50)
+        };
+        var ringMaterial = ColorMat("AirRing", new Color(1f, 0.72f, 0.12f));
+        const int segments = 24;
+        const float radius = 3.2f;
+
+        for (int ringIndex = 0; ringIndex < positions.Length; ringIndex++)
+        {
+            var ring = new GameObject("AirRing_" + (ringIndex + 1));
+            ring.transform.SetParent(arena, false);
+            ring.transform.localPosition = positions[ringIndex];
+
+            var trigger = ring.AddComponent<SphereCollider>();
+            trigger.isTrigger = true;
+            trigger.radius = 1.5f;
+            ring.AddComponent<AirRing>();
+
+            for (int segment = 0; segment < segments; segment++)
             {
-                var c = cam.GetComponent(t);
-                if (c == null) c = cam.gameObject.AddComponent(t);
-                var f = t.GetField("target");
-                if (f != null) f.SetValue(c, car.transform);
+                float angle = segment * Mathf.PI * 2f / segments;
+                var bead = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                bead.name = "RingSegment";
+                bead.transform.SetParent(ring.transform, false);
+                bead.transform.localPosition = new Vector3(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius, 0);
+                bead.transform.localScale = Vector3.one * 0.9f;
+                Object.DestroyImmediate(bead.GetComponent<Collider>());
+                bead.GetComponent<Renderer>().sharedMaterial = ringMaterial;
             }
         }
+    }
+
+    // Пол, 4 стены и потолок
+    static void BuildRoom(Transform arena)
+    {
+        float tile = 20f; // размер одного «повтора» текстуры, м
+
+        var wallNS = TexMat("RoomWall_NS", "room_wallpaper", new Vector2(RoomW / tile, RoomH / tile), Color.white);
+        var wallEW = TexMat("RoomWall_EW", "room_wallpaper", new Vector2(RoomL / tile, RoomH / tile), Color.white);
+        var floorMat = TexMat("RoomFloor", "room_floor", new Vector2(RoomW / tile, RoomL / tile), Color.white);
+        var ceilMat = ColorMat("RoomCeiling", new Color(0.96f, 0.93f, 0.86f));
+
+        // Пол: плоскость Plane (с коллайдером) на всю комнату
+        var plane = GameObject.Find("Plane");
+        if (plane != null)
+        {
+            plane.transform.position = Vector3.zero;
+            plane.transform.rotation = Quaternion.identity;
+            plane.transform.localScale = new Vector3(RoomW / 10f, 1, RoomL / 10f);
+            var r = plane.GetComponent<Renderer>();
+            if (r != null) r.sharedMaterial = floorMat;
+        }
+
+        float hx = RoomW * 0.5f, hz = RoomL * 0.5f;
+        RoomBox(arena, "Wall_N", new Vector3(0, RoomH * 0.5f, hz + WallT * 0.5f), new Vector3(RoomW + 2 * WallT, RoomH, WallT), wallNS, false);
+        RoomBox(arena, "Wall_S", new Vector3(0, RoomH * 0.5f, -hz - WallT * 0.5f), new Vector3(RoomW + 2 * WallT, RoomH, WallT), wallNS, false);
+        RoomBox(arena, "Wall_E", new Vector3(hx + WallT * 0.5f, RoomH * 0.5f, 0), new Vector3(WallT, RoomH, RoomL), wallEW, false);
+        RoomBox(arena, "Wall_W", new Vector3(-hx - WallT * 0.5f, RoomH * 0.5f, 0), new Vector3(WallT, RoomH, RoomL), wallEW, false);
+
+        // Потолок не отбрасывает тень, иначе комната будет тёмной
+        RoomBox(arena, "Ceiling", new Vector3(0, RoomH + WallT * 0.5f, 0), new Vector3(RoomW + 2 * WallT, WallT, RoomL + 2 * WallT), ceilMat, false);
+    }
+
+    static GameObject RoomBox(Transform parent, string name, Vector3 pos, Vector3 size, Material mat, bool castShadow)
+    {
+        var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        g.name = name;
+        g.transform.SetParent(parent, false);
+        g.transform.localPosition = pos;
+        g.transform.localScale = size;
+        var r = g.GetComponent<Renderer>();
+        r.sharedMaterial = mat;
+        r.shadowCastingMode = castShadow ? UnityEngine.Rendering.ShadowCastingMode.On
+                                         : UnityEngine.Rendering.ShadowCastingMode.Off;
+        return g;
+    }
+
+    // Ставит предмет на стену. along: координата вдоль стены (X для северной/южной, Z для восточной/западной)
+    static void PlaceOnWall(GameObject root, Transform parent, int wall, float along, float y)
+    {
+        if (root == null) return;
+        root.transform.SetParent(parent, false);
+
+        float inset = 0.3f;
+        float hx = RoomW * 0.5f, hz = RoomL * 0.5f;
+        Vector3 pos;
+        float yaw;
+        switch (wall)
+        {
+            case 0: pos = new Vector3(along, y, hz - inset); yaw = 0f; break;
+            case 1: pos = new Vector3(along, y, -hz + inset); yaw = 180f; break;
+            case 2: pos = new Vector3(hx - inset, y, along); yaw = 90f; break;
+            default: pos = new Vector3(-hx + inset, y, along); yaw = -90f; break;
+        }
+        if (FlipWallDecor) yaw += 180f;
+
+        root.transform.localPosition = pos;
+        root.transform.localRotation = Quaternion.Euler(0, yaw, 0);
     }
 
     // ---------- Вспомогательные функции ----------
@@ -400,6 +527,44 @@ public static class BuildCarDemoScene
             for (int i = 0; i < arr.Length; i++) arr[i] = m;
             r.sharedMaterials = arr;
         }
+    }
+
+    static Texture2D FindTexture(string name)
+    {
+        foreach (var g in AssetDatabase.FindAssets(name + " t:Texture2D"))
+        {
+            var p = AssetDatabase.GUIDToAssetPath(g);
+            if (Path.GetFileNameWithoutExtension(p) == name)
+                return AssetDatabase.LoadAssetAtPath<Texture2D>(p);
+        }
+        missing.Add("текстура " + name);
+        return null;
+    }
+
+    // Материал URP/Lit с текстурой и повторением (tiling)
+    static Material TexMat(string name, string texName, Vector2 tiling, Color tint)
+    {
+        EnsureGenDir();
+        string path = GenDir + "/" + name + ".mat";
+        var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (m == null)
+        {
+            var sh = Shader.Find("Universal Render Pipeline/Lit");
+            if (sh == null) sh = Shader.Find("Standard");
+            m = new Material(sh);
+            AssetDatabase.CreateAsset(m, path);
+        }
+        var tex = FindTexture(texName);
+        if (tex != null)
+        {
+            if (m.HasProperty("_BaseMap")) { m.SetTexture("_BaseMap", tex); m.SetTextureScale("_BaseMap", tiling); }
+            if (m.HasProperty("_MainTex")) { m.SetTexture("_MainTex", tex); m.SetTextureScale("_MainTex", tiling); }
+        }
+        if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", tint);
+        if (m.HasProperty("_Color")) m.SetColor("_Color", tint);
+        if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.1f);
+        EditorUtility.SetDirty(m);
+        return m;
     }
 
     static Material ColorMat(string name, Color c)

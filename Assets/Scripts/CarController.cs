@@ -21,12 +21,14 @@ public class CarController : MonoBehaviour
     public Vector3 meshRotationOffset = new Vector3(0, 0, 90);
 
     Rigidbody rb;
+    JetpackController jetpack;
     float throttle, steer;
     bool braking;
 
     void Start()
     {
         rb = GetComponent<Rigidbody>();
+        jetpack = GetComponent<JetpackController>();
         rb.centerOfMass = centerOfMass;
     }
 
@@ -40,7 +42,7 @@ public class CarController : MonoBehaviour
                  - (k.sKey.isPressed || k.downArrowKey.isPressed ? 1 : 0);
         steer = (k.dKey.isPressed || k.rightArrowKey.isPressed ? 1 : 0)
               - (k.aKey.isPressed || k.leftArrowKey.isPressed ? 1 : 0);
-        braking = k.spaceKey.isPressed;
+        braking = k.spaceKey.isPressed && jetpack == null;
 
         // R — поставить машинку на колёса
         if (k.rKey.wasPressedThisFrame)
